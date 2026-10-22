@@ -108,10 +108,6 @@ private struct Transport: View {
             PlayButton(radio: radio)
             VolumeSlider(value: $radio.volume)
         }
-        // Puts the play button's centre in the same column as the 1 and 2
-        // badges below it: 12pt row inset plus half a 26pt badge, minus half the button.
-        .padding(.leading, 8)
-        .padding(.trailing, 4)
     }
 }
 
