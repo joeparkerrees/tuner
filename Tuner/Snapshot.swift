@@ -28,11 +28,25 @@ enum Snapshot {
             try? png.write(to: directory.appendingPathComponent("\(state.name).png"))
         }
 
-        for (name, playing) in [("menubar-stopped", false), ("menubar-playing", true)] {
-            let icon = MenuBarIcon.image(position: 0, of: 16, channel: nil, playing: playing)
-            icon.size = NSSize(width: 72, height: 72)
-            if let tiff = icon.tiffRepresentation,
-               let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+        let icons: [(String, String?, Bool)] = [
+            ("menubar-stopped", nil, false), ("menubar-playing", nil, true),
+            ("menubar-1-stopped", "1", false), ("menubar-1-playing", "1", true),
+            ("menubar-2-stopped", "2", false), ("menubar-2-playing", "2", true),
+        ]
+        for (name, channel, playing) in icons {
+            // Drawn at its real 18pt size into an 8x bitmap, so the geometry
+            // matches the menu bar exactly.
+            let icon = MenuBarIcon.image(position: 0, of: 16, channel: channel, playing: playing)
+            guard let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: 144, pixelsHigh: 144, bitsPerSample: 8, samplesPerPixel: 4,
+                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+            ) else { continue }
+            bitmap.size = icon.size
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+            icon.draw(in: NSRect(origin: .zero, size: icon.size))
+            NSGraphicsContext.restoreGraphicsState()
+            if let png = bitmap.representation(using: .png, properties: [:]) {
                 try? png.write(to: directory.appendingPathComponent("\(name).png"))
             }
         }
