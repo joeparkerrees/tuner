@@ -21,6 +21,7 @@ struct Dial: View {
     @State private var hovered: Int?
     @State private var grab: Grab?
     @State private var pressingCenter = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Grab { case ring, center }
 
@@ -45,7 +46,12 @@ struct Dial: View {
     /// The station shown in the middle: a hovered mixtape, a hovered key, or nothing.
     private var highlighted: Int? { hovered.map { radio.mixtapes[$0] } ?? previewing }
 
-    private let reveal = Animation.spring(duration: 0.4, bounce: 0.25)
+    /// Icons arrive on ease-out-quint and leave faster, all at once. With
+    /// Reduce Motion they only fade.
+    private var revealAnimation: Animation {
+        guard revealed else { return Theme.leave }
+        return reduceMotion ? .easeOut(duration: 0.15) : Theme.arrive
+    }
 
     var body: some View {
         ZStack {
@@ -61,8 +67,8 @@ struct Dial: View {
                 .frame(width: centerRadius * 2 - 20)
         }
         .frame(width: size, height: size)
-        .scaleEffect(pressingCenter ? 0.985 : 1)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: pressingCenter)
+        .scaleEffect(pressingCenter && !reduceMotion ? 0.985 : 1)
+        .animation(pressingCenter ? Theme.keyDown : Theme.keyUp, value: pressingCenter)
         .contentShape(Circle())
         .gesture(drag)
         .onContinuousHover { phase in
@@ -77,8 +83,15 @@ struct Dial: View {
             }
         }
         .onChange(of: radio.dialPosition) { old, new in
-            withAnimation(Theme.detent) {
-                beadAngle += shortestTurn(from: old, to: new) * step
+            let turn = shortestTurn(from: old, to: new) * step
+            // Keys and scroll notches already move the dial in your hand, so
+            // the bead lands on the detent instead of travelling behind them.
+            if radio.lastTuneWasStep || reduceMotion {
+                var instant = Transaction()
+                instant.disablesAnimations = true
+                withTransaction(instant) { beadAngle += turn }
+            } else {
+                withAnimation(Theme.detent) { beadAngle += turn }
             }
         }
         .accessibilityElement(children: .ignore)
@@ -97,8 +110,11 @@ struct Dial: View {
         let isDialed = position == radio.dialPosition
         let isHovered = highlighted == radio.mixtapes[position] && !isDialed
         let angle = Double(position) * step * .pi / 180
-        // The icons ripple out from the bead as they appear.
-        let delay = revealed ? abs(shortestTurn(from: radio.dialPosition, to: position)) * 0.014 : 0
+        // The icons ripple out from the bead as they appear, 8ms a step, and
+        // all leave together.
+        let distance = abs(shortestTurn(from: radio.dialPosition, to: position))
+        let delay = revealed && !reduceMotion ? distance * 0.008 : 0
+        let hiddenScale: CGFloat = reduceMotion ? 1 : 0.6
 
         return ZStack {
             Circle()
@@ -108,15 +124,15 @@ struct Dial: View {
             StationIcon(station: station)
                 .frame(width: 18, height: 18)
                 .foregroundStyle(isHovered ? Theme.ink : Theme.muted)
-                .scaleEffect(revealed ? (isHovered ? 1.12 : 1) : 0.2)
+                .scaleEffect(revealed ? (isHovered && !reduceMotion ? 1.12 : 1) : hiddenScale)
                 .opacity(revealed ? 1 : 0)
         }
         // The bead covers whichever mixtape is dialled.
         .opacity(isDialed ? 0 : 1)
         .position(x: radius + ringRadius * sin(angle), y: radius - ringRadius * cos(angle))
-        .animation(reveal.delay(delay), value: revealed)
+        .animation(revealAnimation.delay(delay), value: revealed)
         .animation(.easeOut(duration: 0.15), value: isHovered)
-        .animation(.easeOut(duration: 0.15), value: radio.dialPosition)
+        .animation(radio.lastTuneWasStep ? nil : .easeOut(duration: 0.15), value: radio.dialPosition)
     }
 
     /// The solid bead grows from a dot into a disc carrying the dialled
@@ -137,28 +153,38 @@ struct Dial: View {
                     .fill(Theme.paper)
                     .overlay(Circle().strokeBorder(Theme.ink, lineWidth: 1.5))
                     .frame(width: 7, height: 7)
-                    .scaleEffect(revealed ? 0.4 : 1)
+                    .scaleEffect(revealed && !reduceMotion ? 0.4 : 1)
                     .opacity(revealed ? 0 : 1)
-                ZStack {
-                    Circle().fill(Theme.paper)
-                    Circle().strokeBorder(Theme.ink, lineWidth: 1.5)
-                    icon.foregroundStyle(Theme.ink)
-                }
-                .frame(width: 30, height: 30)
-                .scaleEffect(revealed ? 1 : 0.7)
+                Circle()
+                    .fill(Theme.paper)
+                    .overlay(Circle().strokeBorder(Theme.ink, lineWidth: 1.5))
+                    .frame(width: 30, height: 30)
+                    .overlay { icon.foregroundStyle(Theme.ink) }
+                    .scaleEffect(revealed || reduceMotion ? 1 : 0.7)
                 .opacity(revealed ? 1 : 0)
             } else {
-                ZStack {
-                    Circle().fill(Theme.ink)
-                    icon
-                        .foregroundStyle(Theme.paper)
-                        .scaleEffect(revealed ? 1 : 0.3)
-                        .opacity(revealed ? 1 : 0)
-                }
-                .frame(width: revealed ? 30 : 7, height: revealed ? 30 : 7)
+                // Drawn at full size and scaled, so it can only grow evenly
+                // from its centre. Animating the frame let the icon inside
+                // set the circle's size instead.
+                Circle()
+                    .fill(Theme.ink)
+                    .frame(width: 30, height: 30)
+                    .overlay {
+                        icon
+                            .foregroundStyle(Theme.paper)
+                            .opacity(revealed ? 1 : 0)
+                    }
+                    .scaleEffect(revealed || reduceMotion ? 1 : 7 / 30)
+                    // Reduce Motion swaps the dot and the disc instead of growing one.
+                    .opacity(reduceMotion && !revealed ? 0 : 1)
+                    .overlay {
+                        if reduceMotion {
+                            Circle().fill(Theme.ink).frame(width: 7, height: 7).opacity(revealed ? 0 : 1)
+                        }
+                    }
             }
         }
-        .animation(dialIsIdle ? .spring(duration: 0.3, bounce: 0.1) : reveal, value: revealed)
+        .animation(revealAnimation, value: revealed)
         .animation(.easeOut(duration: 0.2), value: dialIsIdle)
         .offset(y: -ringRadius)
         .rotationEffect(.degrees(beadAngle))
@@ -244,8 +270,15 @@ private struct Readout: View {
     let radio: Radio
     let previewing: Station?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var station: Station { previewing ?? radio.station }
     private var isTunedStation: Bool { station == radio.station }
+    /// A preview follows the pointer, so it swaps instantly. Only a real tune
+    /// from the pointer gets the settle.
+    private var swap: Animation? {
+        previewing == nil && !radio.lastTuneWasStep ? Theme.settle : nil
+    }
 
     var body: some View {
         let schedule = radio.schedule(for: station)
@@ -273,8 +306,8 @@ private struct Readout: View {
         }
         .multilineTextAlignment(.center)
         .id(station.id)
-        .transition(.opacity.combined(with: .offset(y: 3)))
-        .animation(Theme.settle, value: station.id)
+        .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 3)))
+        .animation(swap, value: station.id)
         .animation(Theme.settle, value: radio.state)
     }
 

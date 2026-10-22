@@ -106,20 +106,20 @@ private struct Transport: View {
             PlayButton(radio: radio)
             VolumeSlider(value: $radio.volume)
         }
-        .padding(.leading, 2)
+        // Puts the play button's centre in the same column as the 1 and 2
+        // badges below it: 12pt row inset plus half a 26pt badge, minus half the button.
+        .padding(.leading, 8)
         .padding(.trailing, 4)
     }
 }
 
 private struct PlayButton: View {
     let radio: Radio
-    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button {
-            radio.toggle()
-            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
-        } label: {
+        // No extra haptic here: a trackpad click is already a click.
+        Button(action: radio.toggle) {
             ZStack {
                 Circle().fill(Theme.ink)
                 // Filled and stroked with round joins, so the corners come out soft.
@@ -129,7 +129,7 @@ private struct PlayButton: View {
                         TransportGlyph(stop: radio.isOn ? 1 : 0)
                             .stroke(Theme.paper, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
                     }
-                    .animation(.snappy(duration: 0.32), value: radio.isOn)
+                    .animation(reduceMotion ? .easeOut(duration: 0.12) : .snappy(duration: 0.24), value: radio.isOn)
             }
             .frame(width: 34, height: 34)
             .background {
@@ -137,25 +137,22 @@ private struct PlayButton: View {
                     .frame(width: 44, height: 44)
             }
         }
-        .buttonStyle(PlayKey(hovering: hovering))
-        .onHover { hovering = $0 }
+        .buttonStyle(PlayKey(reduceMotion: reduceMotion))
         .accessibilityLabel(radio.isOn ? "Stop" : "Play")
     }
 }
 
-/// Dips fast when pressed and springs back past where it started, then
-/// settles. Grows a touch under the pointer.
+/// A Braun key: goes down quickly and comes straight back up, no wobble.
+/// With Reduce Motion it dims instead of moving.
 private struct PlayKey: ButtonStyle {
-    let hovering: Bool
+    let reduceMotion: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : (hovering ? 1.04 : 1))
-            .animation(
-                configuration.isPressed ? .easeOut(duration: 0.08) : .spring(response: 0.34, dampingFraction: 0.45),
-                value: configuration.isPressed
-            )
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+        let pressed = configuration.isPressed
+        return configuration.label
+            .scaleEffect(pressed && !reduceMotion ? 0.94 : 1)
+            .opacity(pressed && reduceMotion ? 0.7 : 1)
+            .animation(pressed ? Theme.keyDown : Theme.keyUp, value: pressed)
     }
 }
 
@@ -198,10 +195,12 @@ private struct TransportGlyph: Shape {
 /// A thin arc that goes round the button while a stream connects.
 private struct LoadingRing: View {
     let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(paused: !active)) { context in
-            let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
+        // With Reduce Motion the arc holds still; the ring appearing is the signal.
+        TimelineView(.animation(paused: !active || reduceMotion)) { context in
+            let turn = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
             ZStack {
                 Circle().stroke(Theme.line, lineWidth: 1.5)
                 Circle()
@@ -213,15 +212,6 @@ private struct LoadingRing: View {
         .opacity(active ? 1 : 0)
         .scaleEffect(active ? 1 : 0.85)
         .animation(.easeOut(duration: 0.2), value: active)
-    }
-}
-
-/// Press: dip to 92% and spring back with a little overshoot.
-struct Press: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.5), value: configuration.isPressed)
     }
 }
 
@@ -270,7 +260,7 @@ private struct Channels: View {
         VStack(spacing: 0) {
             ForEach(Array(live.enumerated()), id: \.element) { position, index in
                 if position > 0 {
-                    Rectangle().fill(Theme.ground).frame(height: 1).padding(.leading, 50)
+                    Rectangle().fill(Theme.ground).frame(height: 1).padding(.leading, 48)
                 }
                 ChannelRow(radio: radio, index: index, previewing: $previewing)
             }
@@ -286,31 +276,43 @@ private struct ChannelRow: View {
     @Binding var previewing: Int?
     @State private var hovering = false
 
+    /// How far the top of the title's capitals sits below the top of its
+    /// line, so the badge's top edge can line up with them.
+    private static let capTop: CGFloat = {
+        let font = NSFont.systemFont(ofSize: 13)
+        return font.ascender - font.capHeight
+    }()
+
     private var station: Station { radio.stations[index] }
     private var isRed: Bool { station.channel == "1" }
     private var isOn: Bool { radio.tuned == index && radio.isOn }
+    private var isPlaying: Bool { radio.tuned == index && radio.state == .playing }
 
     var body: some View {
         let schedule = radio.schedule(for: station)
         Button {
             isOn ? radio.stop() : radio.play(index)
         } label: {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 // Red for 1 and white for 2, like the coloured keys on a Braun set.
                 Text(station.channel ?? "")
                     .font(.system(size: 13, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(isRed ? Theme.paper : Theme.ink)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
                     .background {
                         Circle().fill(isRed ? Theme.red : Theme.paper)
                         if !isRed { Circle().strokeBorder(Theme.line, lineWidth: 1) }
                     }
+                    .padding(.top, Self.capTop)
 
                 VStack(alignment: .leading, spacing: 2) {
+                    // Crossfades when the show changes on the hour.
                     Text(schedule?.now.title ?? station.name)
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.ink)
+                        .contentTransition(.opacity)
+                        .animation(.easeOut(duration: 0.15), value: schedule?.now.title)
                     if let next = schedule?.next {
                         HStack(spacing: 6) {
                             Text(next.start.formatted(date: .omitted, time: .shortened))
@@ -328,17 +330,15 @@ private struct ChannelRow: View {
             .padding(.trailing, 24)
             .padding(.vertical, 10)
             .overlay(alignment: .topTrailing) {
-                // Lit while this channel is the one playing, blinking while it connects.
+                // Lights up once sound is coming out of this channel. While it
+                // connects, the ring round the play key is the only signal.
                 Circle()
                     .fill(Theme.red)
                     .frame(width: 5, height: 5)
-                    .opacity(isOn ? 1 : 0)
-                    .phaseAnimator([1, 0.25], trigger: radio.state == .loading) { light, phase in
-                        light.opacity(isOn && radio.state == .loading ? phase : 1)
-                    } animation: { _ in .easeInOut(duration: 0.5) }
+                    .opacity(isPlaying ? 1 : 0)
                     .padding(.top, 12)
                     .padding(.trailing, 12)
-                    .animation(.easeOut(duration: 0.15), value: isOn)
+                    .animation(.easeOut(duration: 0.15), value: isPlaying)
             }
             .background(hovering ? Theme.hover : .clear)
             .contentShape(Rectangle())

@@ -29,6 +29,9 @@ final class Radio {
 
     var station: Station { stations[tuned] }
     var dialPosition: Int { mixtapes.firstIndex(of: dialed) ?? 0 }
+    /// Whether the last tune came from a key, scroll notch or media key. The
+    /// input already carries the movement, so the dial lands without travel.
+    @ObservationIgnored private(set) var lastTuneWasStep = false
     var isOn: Bool { state == .loading || state == .playing }
 
     func schedule(for station: Station) -> Schedule? {
@@ -68,9 +71,10 @@ final class Radio {
 
     // MARK: Tuning
 
-    func tune(to index: Int) {
+    func tune(to index: Int, byStep: Bool = false) {
         let index = ((index % stations.count) + stations.count) % stations.count
         guard index != tuned else { return }
+        lastTuneWasStep = byStep
         tuned = index
         defaults.set(station.id, forKey: Keys.station)
         if station.channel == nil {
@@ -95,12 +99,12 @@ final class Radio {
 
     /// Turns the dial, which only ever lands on mixtapes.
     func step(_ delta: Int) {
-        dial(to: dialPosition + delta)
+        dial(to: dialPosition + delta, byStep: true)
     }
 
-    func dial(to position: Int) {
+    func dial(to position: Int, byStep: Bool = false) {
         let count = mixtapes.count
-        tune(to: mixtapes[((position % count) + count) % count])
+        tune(to: mixtapes[((position % count) + count) % count], byStep: byStep)
     }
 
     // MARK: Transport

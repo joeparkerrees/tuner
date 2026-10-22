@@ -20,8 +20,15 @@ enum Theme {
 
     /// Settle: items land fast and ease the last few pixels.
     static let settle = Animation.timingCurve(0, 0.5, 0.2, 1, duration: 0.35)
-    /// Detent-to-detent travel for the tuning bead.
+    /// Detent-to-detent travel for the tuning bead, when you drag or click.
     static let detent = Animation.snappy(duration: 0.26, extraBounce: 0)
+    /// Things arriving under the pointer: ease-out-quint, no overshoot.
+    static let arrive = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
+    /// Things leaving: quicker and quieter than they arrived.
+    static let leave = Animation.easeOut(duration: 0.12)
+    /// A key going down, and coming back up without a wobble.
+    static let keyDown = Animation.easeOut(duration: 0.08)
+    static let keyUp = Animation.spring(duration: 0.2, bounce: 0)
 }
 
 extension Color {
