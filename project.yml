@@ -1,0 +1,39 @@
+name: Tuner
+options:
+  bundleIdPrefix: com.joeparkerrees
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "27.0"
+  minimumXcodeGenVersion: "2.40"
+
+targets:
+  Tuner:
+    type: application
+    platform: macOS
+    info:
+      path: Tuner/Info.plist
+      properties:
+        # Menu bar only: no Dock icon, no app menu.
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.music
+        CFBundleDisplayName: Tuner
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+    entitlements:
+      path: Tuner/Tuner.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+    sources:
+      - path: Tuner
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.joeparkerrees.tuner
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"

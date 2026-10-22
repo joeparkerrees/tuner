@@ -1,0 +1,5 @@
+build/
+Tuner.xcodeproj/
+*.xcuserstate
+xcuserdata/
+.DS_Store
