@@ -37,16 +37,13 @@ enum MenuBarIcon {
     }
 
     private static func drawChannel(_ channel: String, in ring: CGRect, playing: Bool) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        let font = NSFont.systemFont(ofSize: 9, weight: .semibold)
-        let line = CTLineCreateWithAttributedString(NSAttributedString(string: channel, attributes: [
-            .font: font,
-            NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
-        ]))
-        // Centre the digit's own outline, not its line box, so it sits optically
-        // in the middle of the ring.
-        let glyph = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
-        let origin = CGPoint(x: ring.midX - glyph.midX, y: ring.midY - glyph.midY)
+        guard let context = NSGraphicsContext.current?.cgContext,
+              let digit = outline(of: channel, size: 9) else { return }
+        // Drawn as a shape, so it doesn't snap to the pixel grid the way text
+        // does. Centred on its ink across, since the 1's thin flag would
+        // otherwise leave its stem right of centre, and on its outline down.
+        let box = digit.boundingBoxOfPath
+        let offset = CGPoint(x: ring.midX - inkCentreX(of: digit), y: ring.midY - box.midY)
 
         context.setFillColor(NSColor.black.cgColor)
         context.setStrokeColor(NSColor.black.cgColor)
@@ -58,7 +55,44 @@ enum MenuBarIcon {
             context.setLineWidth(1.2)
             context.strokeEllipse(in: ring.insetBy(dx: 0.6, dy: 0.6))
         }
-        context.textPosition = origin
-        CTLineDraw(line, context)
+        context.translateBy(x: offset.x, y: offset.y)
+        context.addPath(digit)
+        context.fillPath()
+    }
+
+    private static func outline(of character: String, size: CGFloat) -> CGPath? {
+        let font = NSFont.systemFont(ofSize: size, weight: .semibold) as CTFont
+        var characters = Array(character.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: characters.count)
+        guard CTFontGetGlyphsForCharacters(font, &characters, &glyphs, characters.count) else { return nil }
+        return CTFontCreatePathForGlyph(font, glyphs[0], nil)
+    }
+
+    /// Where the glyph's ink balances left to right, found by filling it into
+    /// a small offscreen bitmap.
+    private static func inkCentreX(of path: CGPath) -> CGFloat {
+        let box = path.boundingBoxOfPath
+        let scale: CGFloat = 16
+        let width = Int((box.width * scale).rounded(.up)), height = Int((box.height * scale).rounded(.up))
+        guard width > 0, height > 0,
+              let bitmap = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue),
+              let data = bitmap.data else { return box.midX }
+        bitmap.scaleBy(x: scale, y: scale)
+        bitmap.translateBy(x: -box.minX, y: -box.minY)
+        bitmap.setFillColor(gray: 1, alpha: 1)
+        bitmap.addPath(path)
+        bitmap.fillPath()
+
+        let pixels = data.bindMemory(to: UInt8.self, capacity: bitmap.bytesPerRow * height)
+        var moment = 0.0, ink = 0.0
+        for y in 0..<height {
+            for x in 0..<width {
+                let value = Double(pixels[y * bitmap.bytesPerRow + x])
+                moment += value * (Double(x) + 0.5)
+                ink += value
+            }
+        }
+        return ink > 0 ? box.minX + CGFloat(moment / ink) / scale : box.midX
     }
 }
