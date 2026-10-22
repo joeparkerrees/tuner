@@ -6,6 +6,8 @@ struct Panel: View {
     @Bindable var radio: Radio
     /// Snapshots only: shows the dial's icons without a pointer over it.
     var showsIcons = false
+    /// Snapshots turn this off so rendering never uses up the one-time sweep.
+    var playsIntro = true
     @FocusState private var focused: Bool
     @State private var scroll = ScrollTuner()
     /// A live channel row under the pointer, previewed in the middle of the dial.
@@ -13,7 +15,7 @@ struct Panel: View {
 
     var body: some View {
         VStack(spacing: Theme.gutter) {
-            Dial(radio: radio, showsIcons: showsIcons, previewing: previewing)
+            Dial(radio: radio, showsIcons: showsIcons, previewing: previewing, playsIntro: playsIntro)
             Transport(radio: radio)
             Channels(radio: radio, previewing: $previewing)
             Footer()

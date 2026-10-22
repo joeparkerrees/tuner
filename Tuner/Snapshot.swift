@@ -20,7 +20,7 @@ enum Snapshot {
         for state in states {
             let radio = Radio(defaults: UserDefaults(suiteName: "snapshot")!)
             radio.seedForSnapshot(tuned: state.tuned, playing: state.playing, schedules: schedules)
-            let renderer = ImageRenderer(content: Panel(radio: radio, showsIcons: state.icons).fixedSize())
+            let renderer = ImageRenderer(content: Panel(radio: radio, showsIcons: state.icons, playsIntro: false).fixedSize())
             renderer.scale = 2
             guard let image = renderer.nsImage,
                   let tiff = image.tiffRepresentation,

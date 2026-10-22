@@ -29,6 +29,8 @@ enum Theme {
     /// A key going down, and coming back up without a wobble.
     static let keyDown = Animation.easeOut(duration: 0.08)
     static let keyUp = Animation.spring(duration: 0.2, bounce: 0)
+    /// The one-time sweep round the dial: eases in, travels, eases to a stop.
+    static let sweep = Animation.timingCurve(0.77, 0, 0.18, 1, duration: 1.2)
 }
 
 extension Color {

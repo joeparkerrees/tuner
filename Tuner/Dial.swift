@@ -14,6 +14,8 @@ struct Dial: View {
     var showsIcons: Bool
     /// A station to show in the middle from outside the dial, like a hovered channel key.
     var previewing: Int?
+    /// Whether this dial may play the one-time sweep. Off for snapshots.
+    var playsIntro: Bool
 
     @State private var beadAngle: Double
     @State private var pointerInside = false
@@ -22,14 +24,16 @@ struct Dial: View {
     @State private var grab: Grab?
     @State private var pressingCenter = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("dialIntroShown") private var introShown = false
 
     private enum Grab { case ring, center }
 
-    init(radio: Radio, size: CGFloat = Theme.panelWidth - Theme.gutter * 2, showsIcons: Bool = false, previewing: Int? = nil) {
+    init(radio: Radio, size: CGFloat = Theme.panelWidth - Theme.gutter * 2, showsIcons: Bool = false, previewing: Int? = nil, playsIntro: Bool = false) {
         self.radio = radio
         self.size = size
         self.showsIcons = showsIcons
         self.previewing = previewing
+        self.playsIntro = playsIntro
         _beadAngle = State(initialValue: Double(radio.dialPosition) * 360 / Double(radio.mixtapes.count))
     }
 
@@ -71,6 +75,7 @@ struct Dial: View {
         .animation(pressingCenter ? Theme.keyDown : Theme.keyUp, value: pressingCenter)
         .contentShape(Circle())
         .gesture(drag)
+        .onAppear(perform: sweepOnce)
         .onContinuousHover { phase in
             switch phase {
             case .active(let point):
@@ -188,6 +193,17 @@ struct Dial: View {
         .animation(.easeOut(duration: 0.2), value: dialIsIdle)
         .offset(y: -ringRadius)
         .rotationEffect(.degrees(beadAngle))
+    }
+
+    /// The first time the dial ever opens, the bead goes once round the ring
+    /// and lands back where it was, so it's clear the dial turns. Never again
+    /// after that, and not at all with Reduce Motion. Grabbing the dial
+    /// mid-sweep just retargets the bead from wherever it's got to.
+    private func sweepOnce() {
+        guard playsIntro, !introShown else { return }
+        introShown = true
+        guard !reduceMotion else { return }
+        withAnimation(Theme.sweep.delay(0.4)) { beadAngle += 360 }
     }
 
     private var drag: some Gesture {
