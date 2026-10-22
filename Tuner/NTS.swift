@@ -56,7 +56,7 @@ private struct LiveResponse: Decodable {
         var show: Show {
             // broadcast_title is shouted in caps; the episode name keeps the show's own casing.
             Show(
-                title: embeds.details?.name ?? broadcastTitle,
+                title: embeds.details?.name ?? broadcastTitle.decodingHTMLEntities,
                 location: embeds.details?.locationLong,
                 start: startTimestamp,
                 end: endTimestamp,
@@ -85,5 +85,13 @@ private struct LiveResponse: Decodable {
 
     struct Media: Decodable {
         let backgroundMedium: URL?
+    }
+}
+
+private extension String {
+    /// broadcast_title arrives HTML-escaped ("Bibio &amp; Dorian Concept").
+    var decodingHTMLEntities: String {
+        [("&quot;", "\""), ("&#39;", "'"), ("&#039;", "'"), ("&lt;", "<"), ("&gt;", ">"), ("&amp;", "&")]
+            .reduce(self) { $0.replacingOccurrences(of: $1.0, with: $1.1) }
     }
 }
