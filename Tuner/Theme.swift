@@ -10,7 +10,7 @@ enum Theme {
     static let faint = Color(hex: 0xC8C8C8)
     static let muted = Color(hex: 0xA1A1A1)
     static let hover = Color(hex: 0xF6F6F6)
-    /// The one colour, sampled from the power button on a Braun T 1000: the
+    /// The one colour, sampled from a button on Dieter Rams's T 1000: the
     /// NTS 1 badge and the small playing dots.
     static let red = Color(hex: 0xE0330C)
 

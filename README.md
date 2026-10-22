@@ -1,6 +1,6 @@
 # Tuner
 
-A small macOS menu bar player for NTS Radio, designed after Braun.
+A small macOS menu bar player for NTS Radio, designed after Dieter Rams.
 
 ![Tuner playing NTS 1, and the mixtape dial with the pointer over it](docs/tuner.png)
 
@@ -73,5 +73,5 @@ build/Build/Products/Debug/Tuner.app/Contents/MacOS/Tuner --snapshot ~/Library/C
 - The code is MIT licensed, see [LICENSE](LICENSE).
 - NTS Radio, the station names, the mixtape descriptions and the mixtape icons in `Tuner/Assets.xcassets` belong to NTS. The streams and schedule come from NTS's own public endpoints. Tuner is an independent project and isn't affiliated with NTS.
 - The Discord logo is from [Simple Icons](https://simpleicons.org) (CC0). Discord and its logo are trademarks of Discord Inc.
-- The accent red was sampled from the power button on a Braun T 1000.
+- The accent red was sampled from a button on Dieter Rams's T 1000 radio for Braun.
 - Thanks to [NTS Dial](https://github.com/sennabecool/nts-dial) by sennabecool, which got me started, and the [Atonemo NTS Radio Player](https://shop.nts.live/products/atonemo-nts-radio-player).
